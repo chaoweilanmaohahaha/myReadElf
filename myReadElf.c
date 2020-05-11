@@ -40,8 +40,12 @@ void readElfHeader(char *file) {
 	}
 
 	buf = (Elf64_Ehdr*)malloc(sizeof(Elf64_Ehdr));
-	fsize = read(fp, buf, sizeof(Elf64_Ehdr));
+	if(!buf) {
+		printf("no enough memory in the heap!\n");
+		exit(0);
+	}	
 
+	fsize = read(fp, buf, sizeof(Elf64_Ehdr));
 	if(fsize <= 0) {
 		printf("fail to read file, please check it");
 		exit(0);
@@ -57,9 +61,12 @@ void readElfHeader(char *file) {
 	printf("elf file section header table offset: %ld bytes\n", buf->e_shoff);
 	printf("elf file flags: %u\n", buf->e_flags);
 	printf("elf file header size: %d\n", buf->e_ehsize);
-	printf("elf file program header table entry size: %d\n bytes", buf->e_phentsize);
+	printf("elf file program header table entry size: %d bytes\n", buf->e_phentsize);
 	printf("elf file program header table entry count: %d\n", buf->e_phnum);
-	printf("elf file section header table entry size: %d\n bytes", buf->e_shentsize);
+	printf("elf file section header table entry size: %d bytes\n", buf->e_shentsize);
 	printf("elf file section header table entry count: %d\n", buf->e_shnum);
 	printf("elf file section header string table index: %d\n", buf->e_shstrndx);
+
+	free(buf);
+	buf = NULL;
 }
