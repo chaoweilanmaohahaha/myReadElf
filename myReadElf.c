@@ -9,6 +9,8 @@
 
 static void readElfHeader(char *);
 static void readElfSecHeader(char *);
+static void readShStrTable(char *);
+static void readStrTable(char *);
 static void showMenu();
 
 int main(int argc, char *argv[], char *envp[]) {
@@ -23,8 +25,12 @@ int main(int argc, char *argv[], char *envp[]) {
 		showMenu();
 	} else if(!strcmp(argv[1], "-h")) {
 		readElfHeader(argv[2]);
-	} else if(!strcmp(argv[1], "-s")){
+	} else if(!strcmp(argv[1], "-s")) {
 		readElfSecHeader(argv[2]);
+	} else if(!strcmp(argv[1], "-sstr")) {
+		readShStrTable(argv[2]);
+	} else if(!strcmp(argv[1], "-str")) {
+		readStrTable(argv[2]);
 	} else {
 		showMenu();
 	}
@@ -36,6 +42,8 @@ void showMenu() {
 	printf("\t--help\t\t\tshow the menu\n");
 	printf("\t-h\t\t\tshow the elf file header\n");
 	printf("\t-s\t\t\tshow the elf file sections\n");
+	printf("\t-str\t\t\tshow the elf file string table\n");
+	printf("\t-sstr\t\t\tshow the elf file section string table\n");
 }
 
 void readElfHeader(char *file) {
@@ -108,18 +116,18 @@ void readElfHeader(char *file) {
 	else if(buf->e_type == 0x03)
 		printf("elf file type: dynamic share file\n");
 
-	printf("elf file machine: %d\n", buf->e_machine);
-	printf("elf file version: %u\n", buf->e_version);
-	printf("elf file entry point: %lu\n", buf->e_entry);
-	printf("elf file program header table offset: %ld bytes\n", buf->e_phoff);
-	printf("elf file section header table offset: %ld bytes\n", buf->e_shoff);
-	printf("elf file flags: %u\n", buf->e_flags);
-	printf("elf file header size: %d\n", buf->e_ehsize);
-	printf("elf file program header table entry size: %d bytes\n", buf->e_phentsize);
-	printf("elf file program header table entry count: %d\n", buf->e_phnum);
-	printf("elf file section header table entry size: %d bytes\n", buf->e_shentsize);
-	printf("elf file section header table entry count: %d\n", buf->e_shnum);
-	printf("elf file section header string table index: %d\n", buf->e_shstrndx);
+	printf("elf file machine: %hu\n", buf->e_machine);
+	printf("elf file version: %lu\n", buf->e_version);
+	printf("elf file entry point: %llu\n", buf->e_entry);
+	printf("elf file program header table offset: %lld bytes\n", buf->e_phoff);
+	printf("elf file section header table offset: %lld bytes\n", buf->e_shoff);
+	printf("elf file flags: %lu\n", buf->e_flags);
+	printf("elf file header size: %hu\n", buf->e_ehsize);
+	printf("elf file program header table entry size: %hu bytes\n", buf->e_phentsize);
+	printf("elf file program header table entry count: %hu\n", buf->e_phnum);
+	printf("elf file section header table entry size: %hu bytes\n", buf->e_shentsize);
+	printf("elf file section header table entry count: %hu\n", buf->e_shnum);
+	printf("elf file section header string table index: %hu\n", buf->e_shstrndx);
 
 	free(buf);
 	close(fp);
@@ -155,7 +163,7 @@ void readElfSecHeader(char *filename) {
 	secEntSize = buf->e_shentsize;
 	secNum = buf->e_shnum;	
 	fseek = lseek(fp, secHeadOff, SEEK_SET);
-	if(feek < 0) {
+	if(fseek < 0) {
 		printf("fail to read elf file!\n");
 		exit(0);
 	}
@@ -190,4 +198,174 @@ void readElfSecHeader(char *filename) {
 	free(sectionHeaders);
 	buf == NULL;
 	sectionHeaders = NULL;
+}
+
+void readShStrTable(char *filename) {
+	printf("reading elf file section string table\n");
+	printf("Offset\t\tString\n");
+	
+	int fp, fsize, fseek, i, j;
+	Elf64_Ehdr *buf;
+	int secHeadOff, secEntSize, secNum, shStrTable, shStrTableOff, shStrTableSize;
+	Elf64_Shdr *sectionHeaders, *tmpSecHead;
+	unsigned char* shStrTableStr;
+	fp = open(filename, O_RDONLY);
+	if(fp < 0) { 
+		printf("fail to open the file, please check the existence!\n");
+		exit(0);
+	}
+
+	buf = (Elf64_Ehdr*)malloc(sizeof(Elf64_Ehdr));
+	if(!buf) {
+		printf("no enough memory in the heap!\n");
+		exit(0);
+	}
+
+	fsize = read(fp, buf, sizeof(Elf64_Ehdr));
+	if(fsize <= 0) {
+		printf("fail to read file, please check it");
+		exit(0);
+	}
+
+	shStrTable = buf->e_shstrndx;
+	secHeadOff = buf->e_shoff;
+	secEntSize = buf->e_shentsize;
+	secNum = buf->e_shnum;
+	fseek = lseek(fp, secHeadOff, SEEK_SET);
+	if(fseek < 0) {
+		printf("fail to read elf file!\n");
+		exit(0);
+	}
+	
+	sectionHeaders = (Elf64_Shdr*)malloc(sizeof(Elf64_Shdr)*secNum);
+	if(!sectionHeaders) {
+		printf("no enough memory in the heap!\n");
+		exit(0);
+	}
+	tmpSecHead = sectionHeaders;
+
+	fsize = read(fp, tmpSecHead, sizeof(Elf64_Shdr)*secNum);
+	if(fsize <= 0) {
+		printf("fail to read file, please check it");
+		exit(0);
+	}
+	
+	tmpSecHead += shStrTable;
+	shStrTableOff = tmpSecHead->sh_offset;
+	shStrTableSize = tmpSecHead->sh_size;
+
+	fseek = lseek(fp, shStrTableOff, SEEK_SET);
+       	if(fseek < 0) {
+		printf("fail to read elf file!\n");
+		exit(0);
+	}
+	
+	shStrTableStr = malloc(shStrTableSize);
+	fsize = read(fp, shStrTableStr, shStrTableSize);
+	if(fsize <= 0) {
+		printf("fail to read file, please check it");
+		exit(0);
+	}
+
+	i = j = 0;
+	while(i < shStrTableSize) {
+		if(!shStrTableStr[i]) {
+			printf("%d\t\t%s\n", j, shStrTableStr + j);
+			j = i + 1;
+		}
+		i++;
+	}
+
+	close(fp);
+        free(buf);
+        free(sectionHeaders);
+	free(shStrTableStr);
+        buf == NULL;
+        sectionHeaders = NULL;
+	shStrTableStr = NULL;
+}
+
+void readStrTable(char *filename) {
+        printf("reading elf file string table\n");
+        printf("Offset\t\tString\n");
+
+        int fp, fsize, fseek, i, j;
+        Elf64_Ehdr *buf;
+        int secHeadOff, secEntSize, secNum, shStrTable, shStrTableOff, shStrTableSize;
+        Elf64_Shdr *sectionHeaders, *tmpSecHead;
+        unsigned char* shStrTableStr;
+        fp = open(filename, O_RDONLY);
+        if(fp < 0) {
+                printf("fail to open the file, please check the existence!\n");
+                exit(0);
+        }
+
+        buf = (Elf64_Ehdr*)malloc(sizeof(Elf64_Ehdr));
+        if(!buf) {
+                printf("no enough memory in the heap!\n");
+                exit(0);
+        }
+
+        fsize = read(fp, buf, sizeof(Elf64_Ehdr));
+        if(fsize <= 0) {
+                printf("fail to read file, please check it");
+                exit(0);
+        }
+
+        shStrTable = buf->e_shstrndx;
+        secHeadOff = buf->e_shoff;
+        secEntSize = buf->e_shentsize;
+        secNum = buf->e_shnum;
+        fseek = lseek(fp, secHeadOff, SEEK_SET);
+        if(fseek < 0) {
+                printf("fail to read elf file!\n");
+                exit(0);
+        }
+
+        sectionHeaders = (Elf64_Shdr*)malloc(sizeof(Elf64_Shdr)*secNum);
+        if(!sectionHeaders) {
+                printf("no enough memory in the heap!\n");
+                exit(0);
+        }
+        tmpSecHead = sectionHeaders;
+
+        fsize = read(fp, tmpSecHead, sizeof(Elf64_Shdr)*secNum);
+        if(fsize <= 0) {
+                printf("fail to read file, please check it");
+                exit(0);
+        }
+
+        tmpSecHead += shStrTable - 1;
+        shStrTableOff = tmpSecHead->sh_offset;
+        shStrTableSize = tmpSecHead->sh_size;
+
+        fseek = lseek(fp, shStrTableOff, SEEK_SET);
+        if(fseek < 0) {
+                printf("fail to read elf file!\n");
+                exit(0);
+        }
+
+        shStrTableStr = malloc(shStrTableSize);
+        fsize = read(fp, shStrTableStr, shStrTableSize);
+        if(fsize <= 0) {
+                printf("fail to read file, please check it");
+                exit(0);
+        }
+
+        i = j = 0;
+        while(i < shStrTableSize) {
+                if(!shStrTableStr[i]) {
+                        printf("%d\t\t%s\n", j, shStrTableStr + j);
+                        j = i + 1;
+                }
+                i++;
+        }
+
+        close(fp);
+        free(buf);
+        free(sectionHeaders);
+        free(shStrTableStr);
+        buf == NULL;
+        sectionHeaders = NULL;
+        shStrTableStr = NULL;
 }
