@@ -91,3 +91,25 @@ typedef struct
 	Elf64_Xword   sh_addralign;           /* Section alignment */
 	Elf64_Xword   sh_entsize;             /* Entry size if section holds table */
 } Elf64_Shdr;
+
+typedef struct
+{
+	Elf64_Word    p_type;                 /* Segment type */
+  	Elf64_Word    p_flags;                /* Segment flags */
+  	Elf64_Off     p_offset;               /* Segment file offset */
+  	Elf64_Addr    p_vaddr;                /* Segment virtual address */
+  	Elf64_Addr    p_paddr;                /* Segment physical address */
+  	Elf64_Xword   p_filesz;               /* Segment size in file */
+  	Elf64_Xword   p_memsz;                /* Segment size in memory */
+  	Elf64_Xword   p_align;                /* Segment alignment */
+} Elf64_Phdr;
+
+typedef struct
+{
+	Elf64_Word    st_name;                /* Symbol name (string tbl index) */
+	unsigned char st_info;                /* Symbol type and binding */
+	unsigned char st_other;               /* Symbol visibility */
+	Elf64_Section st_shndx;               /* Section index */
+	Elf64_Addr    st_value;               /* Symbol value */
+	Elf64_Xword   st_size;                /* Symbol size */
+} Elf64_Sym;

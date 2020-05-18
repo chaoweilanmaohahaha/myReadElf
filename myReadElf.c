@@ -11,6 +11,8 @@ static void readElfHeader(char *);
 static void readElfSecHeader(char *);
 static void readShStrTable(char *);
 static void readStrTable(char *);
+static void readSymTable(char *);
+static void readProTable(char *);
 static void showMenu();
 
 int main(int argc, char *argv[], char *envp[]) {
@@ -31,6 +33,10 @@ int main(int argc, char *argv[], char *envp[]) {
 		readShStrTable(argv[2]);
 	} else if(!strcmp(argv[1], "-str")) {
 		readStrTable(argv[2]);
+	} else if(!strcmp(argv[1], "-sym")) {
+		readSymTable(argv[2]);
+	} else if(!strcmp(argv[1], "-p")) {
+		readProTable(argv[2]);
 	} else {
 		showMenu();
 	}
@@ -368,4 +374,162 @@ void readStrTable(char *filename) {
         buf == NULL;
         sectionHeaders = NULL;
         shStrTableStr = NULL;
+}
+
+void readSymTable(char *filename) {
+	printf("reading elf file symbol table\n");
+
+        int fp, fsize, fseek, i;
+        Elf64_Ehdr *buf;
+        int secHeadOff, secEntSize, secNum, shStrTable, symTableOff, symTableSize;
+        Elf64_Shdr *sectionHeaders, *tmpSecHead;
+	Elf64_Sym *symTable, *tmpSymTable;
+       	
+        fp = open(filename, O_RDONLY);
+        if(fp < 0) {
+                printf("fail to open the file, please check the existence!\n");
+                exit(0);
+        }
+
+        buf = (Elf64_Ehdr*)malloc(sizeof(Elf64_Ehdr));
+        if(!buf) {
+                printf("no enough memory in the heap!\n");
+                exit(0);
+        }
+
+        fsize = read(fp, buf, sizeof(Elf64_Ehdr));
+        if(fsize <= 0) {
+                printf("fail to read file, please check it");
+                exit(0);
+        }
+
+	shStrTable = buf->e_shstrndx;
+        secHeadOff = buf->e_shoff;
+        secEntSize = buf->e_shentsize;
+        secNum = buf->e_shnum;
+        fseek = lseek(fp, secHeadOff, SEEK_SET);
+        if(fseek < 0) {
+                printf("fail to read elf file!\n");
+                exit(0);
+        }
+
+        sectionHeaders = (Elf64_Shdr*)malloc(sizeof(Elf64_Shdr)*secNum);
+        if(!sectionHeaders) {
+                printf("no enough memory in the heap!\n");
+                exit(0);
+        }
+        tmpSecHead = sectionHeaders;
+
+        fsize = read(fp, tmpSecHead, sizeof(Elf64_Shdr)*secNum);
+        if(fsize <= 0) {
+                printf("fail to read file, please check it");
+                exit(0);
+        }
+
+        tmpSecHead += shStrTable - 2;
+        symTableOff = tmpSecHead->sh_offset;
+        symTableSize = tmpSecHead->sh_size;
+
+        fseek = lseek(fp, symTableOff, SEEK_SET);
+        if(fseek < 0) {
+                printf("fail to read elf file!\n");
+                exit(0);
+        }
+
+        symTable = (Elf64_Sym *)malloc(symTableSize);
+	if(symTable < 0) {
+		printf("no enough memory in the heap!\n");
+		exit(0);
+	}
+	tmpSymTable = symTable;
+
+        fsize = read(fp, symTable, symTableSize);
+	if(fsize <= 0) {
+                printf("fail to read file, please check it");
+                exit(0);
+        }
+
+	printf("Num\t\tName\t\tValue\t\tSize\t\tInfo\t\tOther\t\tSecIndex\n");
+	for(i = 0; i < symTableSize / sizeof(Elf64_Sym); i++) {
+		printf("%d\t\t%lu\t\t%llu\t\t%lu\t\t%u\t\t%u\t\t%lu\n", i,
+				tmpSymTable->st_name, tmpSymTable->st_value, tmpSymTable->st_size,
+				tmpSymTable->st_info, tmpSymTable->st_other, tmpSymTable->st_shndx);
+		tmpSymTable += 1;
+	}
+
+        close(fp);
+        free(buf);
+        free(sectionHeaders);
+        free(symTable);
+        buf == NULL;
+        sectionHeaders = NULL;
+        symTable = NULL;		
+}
+
+void readProTable(char *filename) {
+	int fp, fsize, i, fseek;
+        Elf64_Ehdr *buf = NULL;
+	Elf64_Phdr *pHead = NULL, *tmpHead = NULL;
+	Elf64_Off phoffset = 0;
+	Elf64_Half pentsize = 0, pnum = 0;
+        
+	fp = open(filename, O_RDONLY);
+        if(fp < 0) {
+                printf("fail to open the file, please check the existence!\n");
+                exit(0);
+        }
+
+        buf = (Elf64_Ehdr*)malloc(sizeof(Elf64_Ehdr));
+        if(!buf) {
+                printf("no enough memory in the heap!\n");
+                exit(0);
+        }
+
+        fsize = read(fp, buf, sizeof(Elf64_Ehdr));
+        if(fsize <= 0) {
+                printf("fail to read file, please check it\n");
+                exit(0);
+	}
+
+	phoffset = buf->e_phoff;
+	pentsize = buf->e_phentsize;
+	pnum = buf->e_phnum;
+	if(phoffset == 0) {
+		printf("no program header in this elf file\n");
+		return;
+	}
+
+	fseek = lseek(fp, phoffset, SEEK_SET);
+	if(fseek < 0) {
+		printf("fail to read file, please check it\n");
+		exit(0);
+	}
+
+	pHead = (Elf64_Phdr *)malloc(sizeof(Elf64_Phdr)*pnum);
+	if(pHead < 0) {
+		printf("not enough memory in the heap!\n");
+		exit(0);
+	}
+	tmpHead = pHead;
+
+	fsize = read(fp, pHead, sizeof(Elf64_Phdr)*pnum);
+	if(fsize < 0) {
+		printf("fail to read file, please check it\n");
+		exit(0);
+	}
+
+	printf("showing the program header table now:\n");
+	printf("Type\t\tOffset\t\tVaddress\t\tPaddress\t\tfilesz\t\tmemsz\t\tflags\t\talign");
+	for(i = 0; i < pnum; i++) {
+		printf("%lu\t\t%llu\t\t%llu\t\t%llu\t\t%lu\t\t%lu\t\t%lu\t\t%lu\n", 
+				tmpHead->p_type, tmpHead->p_offset, tmpHead->p_vaddr, tmpHead->p_paddr,
+				tmpHead->p_filesz, tmpHead->p_memsz, tmpHead->p_flags, tmpHead->p_align);
+		tmpHead += 1;
+	}
+
+	close(fp);
+	free(buf);
+	free(pHead);
+	buf = NULL;
+	pHead = NULL;
 }
